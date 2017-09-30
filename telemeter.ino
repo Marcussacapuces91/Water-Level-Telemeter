@@ -27,9 +27,8 @@
 #define ASSERT(...)         while (false) {}
 #endif
 
-// #include "app.h"
-// #include "telemeter.h"
-#include <SigFox.h>
+#include "app.h"
+#include "telemeter.h"
 
 /**
  * @brief Telemeter hardware constants.
@@ -39,73 +38,12 @@ enum {
   PIN_TEL_ECHO = 1
 };
 
-// const Telemeter tel(PIN_TEL_TRIG, PIN_TEL_ECHO);
+const Telemeter tel(PIN_TEL_TRIG, PIN_TEL_ECHO);
 
-// App app(tel);
-
-struct message_t {
-  byte cmd;
-  union {
-    unsigned level;
-  } payload;
-} __attribute__((__packed__));
-
-union response_t {
-  uint64_t epoch;
-} __attribute__((__packed__));
+App app(tel);
 
 void setup() { 
-//  if (!app.setup()) exit(0);
-  Serial.begin(115200);
-  while(!Serial) {};
-
-  if (!SigFox.begin()) {
-    DEBUG_PRINTLN("Shield Error");
-    return;
-  }
-  delay(100);
-
-#ifdef DEBUG
-  SigFox.debug();
-#endif
-  DEBUG_PRINTLN("Running in DEBUG mode.");
-  DEBUG_PRINT("SigFox FW Version "); DEBUG_PRINTLN(SigFox.SigVersion());
-  DEBUG_PRINT("Module ID. : ");      DEBUG_PRINTLN(SigFox.ID());
-  DEBUG_PRINT("Module PAC. : ");     DEBUG_PRINTLN(SigFox.PAC());
-
-  SigFox.end();
-
-  message_t message;
-  message.cmd = 0x01;
-
-  SigFox.begin();
-  delay(30);
-  SigFox.status();
-  delay(1);
-  SigFox.beginPacket();
-  SigFox.write((uint8_t*)(&message), 1);
-  if (SigFox.endPacket(true)) {
-    DEBUG_PRINTLN("No transmission");
-    DEBUG_PRINT("SigFox Status : "); DEBUG_PRINTLN(SigFox.status(SIGFOX));
-    DEBUG_PRINT("Atmel Status : ");  DEBUG_PRINTLN(SigFox.status(ATMEL));
-    SigFox.end();
-    return;
-  }
-  if (SigFox.parsePacket()) {
-    const response_t response;
-    uint8_t* p = (uint8_t*)(&response);
-    while (SigFox.available()) {
-      *p++ = SigFox.read();
-    }
-    DEBUG_PRINT("Returned Epoch : ");
-    DEBUG_PRINTLN(response.epoch);
-
-  } else {
-    DEBUG_PRINTLN("Could not get any response from the server");
-    DEBUG_PRINTLN("Check the SigFox coverage in your area");
-    DEBUG_PRINTLN("If you are indoor, check the 20dB coverage or move near a window");
-  }
-  SigFox.end();
+  if (!app.setup()) exit(0);
 }
 
 void loop() { 

@@ -29,6 +29,21 @@ const int16_t SAVGOL_O1_L15_DERIV[] = {
   32768 * (-1) / 280, 32768 * (-2) / 280, 32768 * (-3) / 280, 32768 * (-4) / 280, 32768 * (-5) / 280, 32768 * (-6) / 280, 32768 * (-7) / 280 
 };
 
+struct message_t {
+  byte cmd;
+  union {
+    unsigned level;
+  } payload;
+} __attribute__((__packed__));
+
+union response_t {
+  struct {
+    uint32_t pad1;
+    uint32_t epoch;  
+  };
+  
+} __attribute__((__packed__));
+
 /**
  *  @brief Classe qui implémente toutes les méthodes de l'application.
  *  Après le constructeur, il faut appeler la méthode setup une fois, puis
@@ -37,7 +52,7 @@ const int16_t SAVGOL_O1_L15_DERIV[] = {
 class App {
 private:
   const Telemeter& telemeter;
-  long epoch;
+  unsigned long epoch;
   RTCZero rtc;
 
   static const size_t buffer_size = 21;
@@ -72,22 +87,73 @@ protected:
     }
   }
 
-/**  
- *   @brief Affiche les informations du module SigFox sur le port série par défaut.
- *   
- *   @return rien.
+/**
+ * @brief Start & configure SigFox module.
+ * 
+ * @return status of the module (true : init fine, false : something wrong)
  */
-  void displayInfo() const {
-    Serial.println(F("MKRFox1200 Sigfox configuration"));
-    Serial.print(F("SigFox FW version "));    Serial.println(SigFox.SigVersion());
-    Serial.print(F("ID  = "));                Serial.println(SigFox.ID());
-    Serial.print(F("PAC = "));                Serial.println(SigFox.PAC());
-    Serial.print(F("Module temperature "));   Serial.println(SigFox.internalTemperature());
+  bool initSF() {
+    if (!SigFox.begin()) {
+      DEBUG_PRINTLN("Shield Error");
+      return false;
+    }
+    delay(100);
   
-    Serial.println(SigFox.status(SIGFOX));
-    Serial.println(SigFox.status(ATMEL));
-    SigFox.status();    
+  #ifdef DEBUG
+    SigFox.debug();
+  #endif
+    DEBUG_PRINTLN("Running in DEBUG mode.");
+    DEBUG_PRINT("SigFox FW Version "); DEBUG_PRINTLN(SigFox.SigVersion());
+    DEBUG_PRINT("Module ID. : ");      DEBUG_PRINTLN(SigFox.ID());
+    DEBUG_PRINT("Module PAC. : ");     DEBUG_PRINTLN(SigFox.PAC());
+  
+    SigFox.end();
+    return true;
   }
+
+/**
+ * @brief Return time as epoch value (seconds since January, the 1st, 1970).
+ * 
+ * The time is requested through the SigFox backend and a distant webservice.
+ * 
+ * @return 0 in case of erro, or the epoch value of the current time
+ */
+  uint32_t getTimeSF() const {
+    message_t message;
+    message.cmd = 0x01;
+  
+    SigFox.begin();
+    delay(30);
+    SigFox.status();
+    delay(1);
+    SigFox.beginPacket();
+    SigFox.write((uint8_t*)(&message), 1);
+    if (SigFox.endPacket(true)) {
+      DEBUG_PRINTLN("No transmission");
+      DEBUG_PRINT("SigFox Status : "); DEBUG_PRINTLN(SigFox.status(SIGFOX));
+      DEBUG_PRINT("Atmel Status : ");  DEBUG_PRINTLN(SigFox.status(ATMEL));
+      SigFox.end();
+      return 0;
+    }
+    if (SigFox.parsePacket()) {
+      response_t response;
+      uint8_t* p = (uint8_t*)(&response);
+      while (SigFox.available()) {
+        *p++ = SigFox.read();
+      }
+      DEBUG_PRINT("Returned Epoch : "); DEBUG_PRINTLN(response.epoch);
+      SigFox.end();
+      return response.epoch;
+    }
+    DEBUG_PRINTLN("Could not get any response from the server");
+    DEBUG_PRINTLN("Check the SigFox coverage in your area");
+    DEBUG_PRINTLN("If you are indoor, check the 20dB coverage or move near a window");
+    DEBUG_PRINT("SigFox Status : "); DEBUG_PRINTLN(SigFox.status(SIGFOX));
+    DEBUG_PRINT("Atmel Status : ");  DEBUG_PRINTLN(SigFox.status(ATMEL));
+    SigFox.end();
+    return 0;
+  }
+
 
 /**
  * @brief Envoie un message sur le réseau SigFox sans attendre de retour.
@@ -176,36 +242,26 @@ public:
   {
   }
 
+
 /**
  *   @brief  Cette méthode assure les réglages de tous les éléments de la carte.
  *  
  *   @return Retour un booléen qui indique le bon déroulement de la méthode, ou pas.
  */  
   bool setup() {
-    Serial.begin(9600);
-    while(!Serial) {}
+    Serial.begin(115200);
+    while(!Serial) {};
+  
+    if (!initSF()) return false;
+  
+//    epoch = getTimeSF();
+    if (epoch == 0) epoch = 1506759463; // Saturday September 30 2017  08:17:43 UTC
 
-/*
-    if (!SigFox.begin()) {
-      Serial.println(F("Shield error or not present!"));
-      return false;
-    }
-    SigFox.debug();
-    displayInfo();
-    delay(100);
-    SigFox.end();
-    delay(100);
-*/
-    const String rep = sendAck(String("\0x01"));
-    if (rep.length() > 0) {
-      byte buffer[8];
-      rep.getBytes(buffer, 8);
-      epoch = 0;
-      for(byte i = 0; i < 8; ++i) {
-        epoch = (epoch << 8) + buffer[i];
-      }
-      rtc.setEpoch(epoch);
-    }
+    rtc.begin();
+    Serial.print("Sec : ");
+    Serial.println(epoch % 60);
+
+    
 
     return true;
   }
