@@ -47,6 +47,6 @@ void setup() {
 }
 
 void loop() { 
-//  if (!app.loop()) exit(0);
+  if (!app.loop()) exit(0);
 }
 

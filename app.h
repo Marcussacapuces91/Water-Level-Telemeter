@@ -32,7 +32,7 @@ const int16_t SAVGOL_O1_L15_DERIV[] = {
 struct message_t {
   byte cmd;
   union {
-    unsigned level;
+    unsigned mediane;
   } payload;
 } __attribute__((__packed__));
 
@@ -258,10 +258,7 @@ public:
     if (epoch == 0) epoch = 1506759463; // Saturday September 30 2017  08:17:43 UTC
 
     rtc.begin();
-    Serial.print("Sec : ");
-    Serial.println(epoch % 60);
-
-    
+    rtc.setTime((epoch / 3600) % 24, (epoch / 60) % 60, epoch % 60);
 
     return true;
   }
@@ -273,7 +270,6 @@ public:
  */
   bool loop() {
     if (millis() % 1000 > 0) return true;
-    ++epoch;
     
     long deriv = 0;
     for (size_t i = 0; i < buffer_size; ++i) {
@@ -299,14 +295,28 @@ public:
     
     Serial.println();
   
-    if (epoch % (60 * 1) == 0) {
-      const String mess = "\0x02" + static_cast<char>((mediane / 256)) + static_cast<char>((mediane % 256));
-      send(mess);
+    if (rtc.getSeconds() == 0) {
+      message_t message;
+      message.cmd = 0x02;
+      message.payload.mediane = mediane;      
+      
+      SigFox.begin();
+      delay(30);
+      SigFox.status();
+      delay(1);
+      SigFox.beginPacket();
+      SigFox.write((uint8_t*)(&message), 2);
+      if (SigFox.endPacket(false)) {
+        DEBUG_PRINTLN("No transmission");
+        DEBUG_PRINT("SigFox Status : "); DEBUG_PRINTLN(SigFox.status(SIGFOX));
+        DEBUG_PRINT("Atmel Status : ");  DEBUG_PRINTLN(SigFox.status(ATMEL));
+        SigFox.end();
+        return false;
+      }
+      SigFox.end();
     }
 
     return true;
   }
 };
-
- 
 
