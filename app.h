@@ -277,8 +277,11 @@ public:
       if (i < 15) deriv += mesures[i] * SAVGOL_O1_L15_DERIV[i];
     }
   
-    Serial.print(F("Epoch : "));
-    Serial.print(epoch);
+    Serial.print((byte)rtc.getHours());
+    Serial.print(':');
+    Serial.print((byte)rtc.getMinutes());
+    Serial.print(':');
+    Serial.print((byte)rtc.getSeconds());
   
     Serial.print(F(" - Mesure : "));
     Serial.print(mesures[buffer_size - 1] / 10.0, 1);
@@ -295,11 +298,14 @@ public:
     
     Serial.println();
   
-    if (rtc.getSeconds() == 0) {
+    if (rtc.getSeconds() == 0 && (rtc.getMinutes() % 15) == 0) {
       message_t message;
       message.cmd = 0x02;
       message.payload.mediane = mediane;      
       
+      DEBUG_PRINT("Send to SigFox : ");
+      DEBUG_PRINTLN(message.cmd, HEX);
+
       SigFox.begin();
       delay(30);
       SigFox.status();
