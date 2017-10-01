@@ -38,7 +38,10 @@ struct message_t {
 union response_t {
   struct {
     uint32_t pad1;
-    uint32_t epoch;  
+    uint8_t epoch_2;  
+    uint8_t epoch_3;  
+    uint8_t epoch_0;  
+    uint8_t epoch_1;  
   };
   
 } __attribute__((__packed__));
@@ -195,7 +198,7 @@ protected:
     size_t len;
     
     if (sendAckSF(reinterpret_cast<const uint8_t*>(&message), 1, reinterpret_cast<uint8_t*>(&response), len)) {
-      return response.epoch;      
+      return (((((uint32_t(response.epoch_3) << 8) + response.epoch_2) << 8) + response.epoch_1) << 8) + response.epoch_0;      
     }
   
     return 0;
@@ -224,8 +227,8 @@ public:
   
     if (!initSF()) return false;
   
-//    epoch = getTimeSF();
-//    DEBUG_PRINT("Returned Epoch : "); DEBUG_PRINTLN(epoch);
+    epoch = getTimeSF();
+    DEBUG_PRINT("Returned Epoch : "); DEBUG_PRINTLN(epoch);
 
     if (epoch == 0) epoch = 1506759463; // Saturday September 30 2017  08:17:43 UTC
     epoch -= 3 * 60;
