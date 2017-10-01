@@ -45,8 +45,9 @@ private:
 
   struct message_t {
     byte cmd;
-    union {
+    struct {
       unsigned mediane;
+      int derivee;
     } payload;
   } __attribute__((__packed__));
   
@@ -224,14 +225,17 @@ public:
   
     if (!initSF()) return false;
   
-    epoch = getTimeSF();
+//    epoch = getTimeSF();
+    epoch = 0;
     DEBUG_PRINT("Returned Epoch : "); DEBUG_PRINTLN(epoch);
 
 //    if (epoch == 0) epoch = 1506759463; // Saturday September 30 2017  08:17:43 UTC
     //epoch -= 3 * 60;
 
     rtc.begin();
-    rtc.setTime((epoch / 3600) % 24, (epoch / 60) % 60, epoch % 60);
+    if (epoch) { 
+      rtc.setTime((epoch / 3600) % 24, (epoch / 60) % 60, epoch % 60); 
+    }
 
     return true;
   }
@@ -270,10 +274,10 @@ public:
     DEBUG_PRINTLN(mediane / 10.0, 1);
     
     if (rtc.getSeconds() == 0 && (rtc.getMinutes() % 15) == 0) {
-      const message_t message = { .cmd = 0x02, .payload = { .mediane = mediane } };
+      const message_t message = { .cmd = 0x02, .payload = { .mediane = mediane, .derivee = deriv / 32768 } };
       DEBUG_PRINT("Send to SigFox : ");
       DEBUG_PRINTLN(message.cmd, HEX);
-      return sendSF(reinterpret_cast<const uint8_t*>(&message), 3);
+      return sendSF(reinterpret_cast<const uint8_t*>(&message), 5);
     }
 
     return true;
