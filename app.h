@@ -28,24 +28,6 @@ const int16_t SAVGOL_O1_L15_DERIV[] = {
   32768 * (-1) / 280, 32768 * (-2) / 280, 32768 * (-3) / 280, 32768 * (-4) / 280, 32768 * (-5) / 280, 32768 * (-6) / 280, 32768 * (-7) / 280 
 };
 
-struct message_t {
-  byte cmd;
-  union {
-    unsigned mediane;
-  } payload;
-} __attribute__((__packed__));
-
-union response_t {
-  struct {
-    uint32_t pad1;
-    uint8_t epoch_2;  
-    uint8_t epoch_3;  
-    uint8_t epoch_0;  
-    uint8_t epoch_1;  
-  };
-  
-} __attribute__((__packed__));
-
 /**
  *  @brief Classe qui implémente toutes les méthodes de l'application.
  *  Après le constructeur, il faut appeler la méthode setup une fois, puis
@@ -61,6 +43,23 @@ private:
   unsigned mesures[buffer_size];
   unsigned buffer[buffer_size];
 
+  struct message_t {
+    byte cmd;
+    union {
+      unsigned mediane;
+    } payload;
+  } __attribute__((__packed__));
+  
+  union response_t {
+    struct {
+      uint32_t pad1;
+      uint8_t epoch_3;  
+      uint8_t epoch_2;  
+      uint8_t epoch_1;  
+      uint8_t epoch_0;  
+    };
+  } __attribute__((__packed__));
+  
 protected:
 
   size_t partition(unsigned list[], const size_t gauche, const size_t droite, const size_t pivot) {
@@ -192,8 +191,6 @@ protected:
  */
   uint32_t getTimeSF() const {
     const message_t message = { .cmd = 0x01 };
-//    message.cmd = 0x01;
-
     response_t response;
     size_t len;
     
@@ -230,8 +227,8 @@ public:
     epoch = getTimeSF();
     DEBUG_PRINT("Returned Epoch : "); DEBUG_PRINTLN(epoch);
 
-    if (epoch == 0) epoch = 1506759463; // Saturday September 30 2017  08:17:43 UTC
-    epoch -= 3 * 60;
+//    if (epoch == 0) epoch = 1506759463; // Saturday September 30 2017  08:17:43 UTC
+    //epoch -= 3 * 60;
 
     rtc.begin();
     rtc.setTime((epoch / 3600) % 24, (epoch / 60) % 60, epoch % 60);
@@ -273,14 +270,10 @@ public:
     DEBUG_PRINTLN(mediane / 10.0, 1);
     
     if (rtc.getSeconds() == 0 && (rtc.getMinutes() % 15) == 0) {
-      message_t message;
-      message.cmd = 0x02;
-      message.payload.mediane = mediane;      
-      
+      const message_t message = { .cmd = 0x02, .payload = { .mediane = mediane } };
       DEBUG_PRINT("Send to SigFox : ");
       DEBUG_PRINTLN(message.cmd, HEX);
-
-      return sendSF((uint8_t*)(&message), 3);
+      return sendSF(reinterpret_cast<const uint8_t*>(&message), 3);
     }
 
     return true;
