@@ -20,7 +20,7 @@
 #ifdef DEBUG
 #define DEBUG_PRINT(...)    Serial.print(__VA_ARGS__)
 #define DEBUG_PRINTLN(...)  Serial.println(__VA_ARGS__)
-#define ASSERT(...)         if (!__VA_ARGS__){ Serial.print(F("__VA_ARGS__")); Serial.println(F(" est faux!")); }
+#define ASSERT(...)         if (!__VA_ARGS__){ Serial.print(F("__VA_ARGS__")); Serial.println(F(" is false!")); }
 #else
 #define DEBUG_PRINT(...)    while (false) {}
 #define DEBUG_PRINTLN(...)  while (false) {}

@@ -18,7 +18,6 @@
 #include <ArduinoLowPower.h>
 #include <utility>
 #include <RTCZero.h>
-// #include <stdlib.h>
 
 #include "telemeter.h"
 
@@ -118,8 +117,8 @@ protected:
  * @param len Length of the message.
  * @return State of the transmission : true succes, false if not.
  */
-  bool sendSF(const uint8_t *const  message, size_t len) {
-    if (len == 0) return false;
+  bool sendSF(const uint8_t message[], size_t len) {
+    if (len == 0) return true;
     SigFox.begin();
     delay(30);
     SigFox.status();
@@ -137,6 +136,49 @@ protected:
       return true;
     }
   }
+
+/**
+ * @brief Send a message and wait for an answer using the SigFox network.
+ * 
+ * @param message Un pointeur vers le message à transmettre (maxi 12 octets).
+ * @param lenMes La longueur du message en octets.
+ * @param response Une référence où sera déposé la réponse (maxi 8 octets).
+ * @param lenRes La longueur de la réponse en octets.
+ */
+  bool sendAckSF(const uint8_t message[], size_t lenMes, uint8_t response[], size_t& lenRes) const {
+    ASSERT(message);
+    ASSERT(response);
+    if (lenMes == 0) return false;
+    SigFox.begin();
+    delay(30);
+    SigFox.status();
+    delay(1);
+    SigFox.beginPacket();
+    SigFox.write(message, lenMes);
+    if (SigFox.endPacket(true)) {
+      DEBUG_PRINTLN("No transmission");
+      DEBUG_PRINT("SigFox Status : "); DEBUG_PRINTLN(SigFox.status(SIGFOX));
+      DEBUG_PRINT("Atmel Status : ");  DEBUG_PRINTLN(SigFox.status(ATMEL));
+      SigFox.end();
+      return false;
+    }
+    if (SigFox.parsePacket()) {
+      lenRes = 0;
+      while (SigFox.available()) {
+        response[lenRes++] = SigFox.read();
+      }
+      SigFox.end();
+      return true;
+    }
+    DEBUG_PRINTLN("Could not get any response from the server");
+    DEBUG_PRINTLN("Check the SigFox coverage in your area");
+    DEBUG_PRINTLN("If you are indoor, check the 20dB coverage or move near a window");
+    DEBUG_PRINT("SigFox Status : "); DEBUG_PRINTLN(SigFox.status(SIGFOX));
+    DEBUG_PRINT("Atmel Status : ");  DEBUG_PRINTLN(SigFox.status(ATMEL));
+    SigFox.end();
+    return false;
+  }
+
   
 /**
  * @brief Return time as epoch value (seconds since January, the 1st, 1970).
@@ -146,38 +188,16 @@ protected:
  * @return 0 in case of erro, or the epoch value of the current time
  */
   uint32_t getTimeSF() const {
-    message_t message;
-    message.cmd = 0x01;
+    const message_t message = { .cmd = 0x01 };
+//    message.cmd = 0x01;
+
+    response_t response;
+    size_t len;
+    
+    if (sendAckSF(reinterpret_cast<const uint8_t*>(&message), 1, reinterpret_cast<uint8_t*>(&response), len)) {
+      return response.epoch;      
+    }
   
-    SigFox.begin();
-    delay(30);
-    SigFox.status();
-    delay(1);
-    SigFox.beginPacket();
-    SigFox.write((uint8_t*)(&message), 1);
-    if (SigFox.endPacket(true)) {
-      DEBUG_PRINTLN("No transmission");
-      DEBUG_PRINT("SigFox Status : "); DEBUG_PRINTLN(SigFox.status(SIGFOX));
-      DEBUG_PRINT("Atmel Status : ");  DEBUG_PRINTLN(SigFox.status(ATMEL));
-      SigFox.end();
-      return 0;
-    }
-    if (SigFox.parsePacket()) {
-      response_t response;
-      uint8_t* p = (uint8_t*)(&response);
-      while (SigFox.available()) {
-        *p++ = SigFox.read();
-      }
-      DEBUG_PRINT("Returned Epoch : "); DEBUG_PRINTLN(response.epoch);
-      SigFox.end();
-      return response.epoch;
-    }
-    DEBUG_PRINTLN("Could not get any response from the server");
-    DEBUG_PRINTLN("Check the SigFox coverage in your area");
-    DEBUG_PRINTLN("If you are indoor, check the 20dB coverage or move near a window");
-    DEBUG_PRINT("SigFox Status : "); DEBUG_PRINTLN(SigFox.status(SIGFOX));
-    DEBUG_PRINT("Atmel Status : ");  DEBUG_PRINTLN(SigFox.status(ATMEL));
-    SigFox.end();
     return 0;
   }
 
@@ -205,6 +225,8 @@ public:
     if (!initSF()) return false;
   
 //    epoch = getTimeSF();
+//    DEBUG_PRINT("Returned Epoch : "); DEBUG_PRINTLN(epoch);
+
     if (epoch == 0) epoch = 1506759463; // Saturday September 30 2017  08:17:43 UTC
     epoch -= 3 * 60;
 
