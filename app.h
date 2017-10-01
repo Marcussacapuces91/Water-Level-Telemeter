@@ -58,7 +58,7 @@ private:
   static const size_t buffer_size = 21;
   unsigned mesures[buffer_size];
   unsigned buffer[buffer_size];
-  
+
 protected:
 
   size_t partition(unsigned list[], const size_t gauche, const size_t droite, const size_t pivot) {
@@ -112,6 +112,33 @@ protected:
   }
 
 /**
+ * @brief Send a message using SigFox network.
+ * 
+ * @param message Array of max 12 byte.
+ * @param len Length of the message.
+ * @return State of the transmission : true succes, false if not.
+ */
+  bool sendSF(const uint8_t *const  message, size_t len) {
+    if (len == 0) return false;
+    SigFox.begin();
+    delay(30);
+    SigFox.status();
+    delay(1);
+    SigFox.beginPacket();
+    SigFox.write(message, len);
+    if (SigFox.endPacket(false)) {  // no answer
+      DEBUG_PRINTLN("No transmission");
+      DEBUG_PRINT("SigFox Status : "); DEBUG_PRINTLN(SigFox.status(SIGFOX));
+      DEBUG_PRINT("Atmel Status : ");  DEBUG_PRINTLN(SigFox.status(ATMEL));
+      SigFox.end();
+      return false;
+    } else {
+      SigFox.end();
+      return true;
+    }
+  }
+  
+/**
  * @brief Return time as epoch value (seconds since January, the 1st, 1970).
  * 
  * The time is requested through the SigFox backend and a distant webservice.
@@ -154,83 +181,6 @@ protected:
     return 0;
   }
 
-
-/**
- * @brief Envoie un message sur le réseau SigFox sans attendre de retour.
- * 
- * @param mess Une référence sur le texte du message à transmettre.
- * @return L'état de la transmission, true en cas de succès, false sinon.
- */
-  bool send(const String& mess) const {
-    SigFox.begin();
-    delay(100);
-    SigFox.status();
-    delay(1);
-
-    SigFox.beginPacket();
-    SigFox.print(mess);
-    Serial.print(F("send to SigFox : "));
-    Serial.println(mess);
-
-    if (SigFox.endPacket(false) > 0) {
-      Serial.println(F("No transmission"));
-      Serial.println(SigFox.status(SIGFOX));
-      Serial.println(SigFox.status(ATMEL));
-      SigFox.end();
-      delay(100);
-      return false;
-    }
-    SigFox.end();
-    delay(100);
-    return true;
-  }
-  
-/**
- * @brief Envoie un message sur le réseau SigFox et retourne la réponse.
- * 
- * @param mess Une référence sur le texte du message à transmettre.
- * @return La réponse ou une chaîne vide en cas d'échec de transmission ou de réception.
- */
-  String sendAck(const String& mess) const {
-    SigFox.begin();
-    delay(100);
-    SigFox.status();
-    delay(1);
-        
-    Serial.print(F("sendAck to SigFox : "));
-    Serial.print(mess);
-
-    String rep;
-    SigFox.beginPacket();
-    SigFox.print(mess);
-    if (SigFox.endPacket(true) > 0) {
-      Serial.println(F("No transmission"));
-      Serial.println(SigFox.status(SIGFOX));
-      Serial.println(SigFox.status(ATMEL));
-      SigFox.end();
-      delay(100);
-      return rep;
-    }
-    if (SigFox.parsePacket()) {
-      while (SigFox.available()) {
-        rep += static_cast<char>(SigFox.read());
-      }
-      Serial.print(F(" -> "));
-      Serial.println(rep);
-      SigFox.end();
-      delay(100);
-      return rep;
-    }
-    Serial.println(F("Could not get any response from the server"));
-    Serial.println(F("Check the SigFox coverage in your area"));
-    Serial.println(F("If you are indoor, check the 20dB coverage or move near a window"));
-    Serial.println(SigFox.status(SIGFOX));
-    Serial.println(SigFox.status(ATMEL));
-    SigFox.end();
-    delay(100);
-    return rep;
-  }
-
 public:
 /**
  * @brief Constructeur
@@ -256,6 +206,7 @@ public:
   
 //    epoch = getTimeSF();
     if (epoch == 0) epoch = 1506759463; // Saturday September 30 2017  08:17:43 UTC
+    epoch -= 3 * 60;
 
     rtc.begin();
     rtc.setTime((epoch / 3600) % 24, (epoch / 60) % 60, epoch % 60);
@@ -277,27 +228,25 @@ public:
       if (i < 15) deriv += mesures[i] * SAVGOL_O1_L15_DERIV[i];
     }
   
-    Serial.print((byte)rtc.getHours());
-    Serial.print(':');
-    Serial.print((byte)rtc.getMinutes());
-    Serial.print(':');
-    Serial.print((byte)rtc.getSeconds());
+    DEBUG_PRINT((byte)rtc.getHours());
+    DEBUG_PRINT(':');
+    DEBUG_PRINT((byte)rtc.getMinutes());
+    DEBUG_PRINT(':');
+    DEBUG_PRINT((byte)rtc.getSeconds());
   
-    Serial.print(F(" - Mesure : "));
-    Serial.print(mesures[buffer_size - 1] / 10.0, 1);
+    DEBUG_PRINT(F(" - Mesure : "));
+    DEBUG_PRINT(mesures[buffer_size - 1] / 10.0, 1);
   
-    Serial.print(F(" - Dérivée : "));
-    Serial.print(deriv / 327680.0, 2);
+    DEBUG_PRINT(F(" - Dérivée : "));
+    DEBUG_PRINT(deriv / 327680.0, 2);
   
     unsigned buffer[buffer_size];  
     memcpy(buffer, mesures, sizeof(unsigned) * buffer_size);
     const unsigned mediane = select(buffer, 0, buffer_size - 1, buffer_size / 2);
   
-    Serial.print(F(" - Mediane : "));
-    Serial.print(mediane / 10.0, 1);
+    DEBUG_PRINT(F(" - Mediane : "));
+    DEBUG_PRINTLN(mediane / 10.0, 1);
     
-    Serial.println();
-  
     if (rtc.getSeconds() == 0 && (rtc.getMinutes() % 15) == 0) {
       message_t message;
       message.cmd = 0x02;
@@ -306,20 +255,7 @@ public:
       DEBUG_PRINT("Send to SigFox : ");
       DEBUG_PRINTLN(message.cmd, HEX);
 
-      SigFox.begin();
-      delay(30);
-      SigFox.status();
-      delay(1);
-      SigFox.beginPacket();
-      SigFox.write((uint8_t*)(&message), 2);
-      if (SigFox.endPacket(false)) {
-        DEBUG_PRINTLN("No transmission");
-        DEBUG_PRINT("SigFox Status : "); DEBUG_PRINTLN(SigFox.status(SIGFOX));
-        DEBUG_PRINT("Atmel Status : ");  DEBUG_PRINTLN(SigFox.status(ATMEL));
-        SigFox.end();
-        return false;
-      }
-      SigFox.end();
+      return sendSF((uint8_t*)(&message), 3);
     }
 
     return true;
