@@ -44,11 +44,11 @@ private:
   unsigned buffer[buffer_size];
 
   struct message_t {
-    byte cmd;
+    uint8_t cmd;
     struct {
-      unsigned mediane;
-      int derivee;
-    } payload;
+      uint16_t mediane;
+      int16_t derivee;
+    } __attribute__((__packed__)) payload;
   } __attribute__((__packed__));
   
   union response_t {
@@ -274,7 +274,12 @@ public:
     DEBUG_PRINTLN(mediane / 10.0, 1);
     
     if (rtc.getSeconds() == 0 && (rtc.getMinutes() % 15) == 0) {
-      const message_t message = { .cmd = 0x02, .payload = { .mediane = mediane, .derivee = deriv / 32768 } };
+      const message_t message = { 
+        .cmd = 0x02, 
+        .payload = { 
+            .mediane = static_cast<uint16_t>(mediane), 
+            .derivee = static_cast<int16_t>(deriv / 3276.8) 
+      }};
       DEBUG_PRINT("Send to SigFox : ");
       DEBUG_PRINTLN(message.cmd, HEX);
       return sendSF(reinterpret_cast<const uint8_t*>(&message), 5);
