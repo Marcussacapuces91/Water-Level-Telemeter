@@ -30,22 +30,22 @@ const int16_t SAVGOL_O1_L15_DERIV[] = {
 
 /**
  *  @brief Classe qui implémente toutes les méthodes de l'application.
+ *  
  *  Après le constructeur, il faut appeler la méthode setup une fois, puis
  *  de manière répéter appeler la méthode loop.
  */  
 class App {
 private:
   const Telemeter& telemeter;
-  unsigned long epoch;
   RTCZero rtc;
 
-  static const size_t buffer_size = 21;
+  static const size_t buffer_size = 15;
   unsigned mesures[buffer_size];
-  unsigned buffer[buffer_size];
 
   struct message_t {
     uint8_t cmd;
     struct {
+      uint16_t mesure;
       uint16_t mediane;
       int16_t derivee;
     } __attribute__((__packed__)) payload;
@@ -63,29 +63,53 @@ private:
   
 protected:
 
-  size_t partition(unsigned list[], const size_t gauche, const size_t droite, const size_t pivot) {
-    const unsigned valeurPivot = list[pivot];
-    std::swap(list[pivot], list[droite]);
-    size_t indiceStocage = gauche;
-    for (size_t i = gauche; i < droite; ++i) {
+/**
+ * @brief Part of the median computing.
+ * 
+ * @param list List of values (in unsorted & out sorted).
+ * @param gauche Left index of sorted interval.
+ * @param droite Right index of sorted interval.
+ * @param pivot Index of the pivot value.
+ * @return Storage index.
+ */
+  template <class T>
+  size_t partition(T list[], const size_t left, const size_t right, const size_t pivot) {
+    const T valeurPivot = list[pivot];
+    std::swap(list[pivot], list[right]);
+    size_t storageIndex = left;
+    for (size_t i = left; i < right; ++i) {
       if (list[i] < valeurPivot) {
-        std::swap(list[indiceStocage], list[i]);
-        ++indiceStocage;
+        std::swap(list[storageIndex], list[i]);
+        ++storageIndex;
       }
     }
-    std::swap(list[indiceStocage], list[droite]);
-    return indiceStocage;
+    std::swap(list[storageIndex], list[right]);
+    return storageIndex;
   }
-  
-  unsigned select(unsigned list[], size_t gauche, size_t droite, const size_t n) {
-    if (gauche == droite) return list[gauche];
+
+/**  
+ * @brief Return the median value of a list.
+ * Using a none recursive method.
+ * 
+ * @param list List of values (in unsorted & out sorted).
+ * @param gauche Left index of sorted interval.
+ * @param droite Right index of sorted interval.
+ * @param pivot Index of the pivot value.
+ * @return Median value.
+ */
+  template <class T>
+  T select(T list[], const size_t left, const size_t right, const size_t n) {
+    if (left == right) return list[left];
+
+    size_t l = left;
+    size_t r = right;
   
     while (true) {
-      const size_t p = (gauche + droite) / 2;
-      const size_t pivot = partition(list, gauche, droite, p);
+      const size_t p = (l + r) / 2; // first pivot middle of the list
+      const size_t pivot = partition(list, l, r, p);
       if (n == pivot) return list[n];
-      else if (n < pivot) droite = pivot - 1;
-      else gauche = pivot + 1;  
+      else if (n < pivot) r = pivot - 1;
+      else l = pivot + 1;  
     }
   }
 
@@ -224,19 +248,15 @@ public:
     while(!Serial) {};
   
     if (!initSF()) return false;
-  
-//    epoch = getTimeSF();
-    epoch = 0;
-    DEBUG_PRINT("Returned Epoch : "); DEBUG_PRINTLN(epoch);
-
-//    if (epoch == 0) epoch = 1506759463; // Saturday September 30 2017  08:17:43 UTC
-    //epoch -= 3 * 60;
-
     rtc.begin();
+  
+#if 0
+    const unsigned long epoch = getTimeSF();
+    DEBUG_PRINT("Returned Epoch : "); DEBUG_PRINTLN(epoch);
     if (epoch) { 
       rtc.setTime((epoch / 3600) % 24, (epoch / 60) % 60, epoch % 60); 
     }
-
+#endif
     return true;
   }
   
@@ -277,8 +297,9 @@ public:
       const message_t message = { 
         .cmd = 0x02, 
         .payload = { 
+            .mesure = static_cast<uint16_t>(mesures[buffer_size - 1]),
             .mediane = static_cast<uint16_t>(mediane), 
-            .derivee = static_cast<int16_t>(deriv / 3276.8) 
+            .derivee = static_cast<int16_t>(deriv / 32768) 
       }};
       DEBUG_PRINT("Send to SigFox : ");
       DEBUG_PRINTLN(message.cmd, HEX);
