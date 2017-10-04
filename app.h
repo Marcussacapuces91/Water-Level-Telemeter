@@ -303,7 +303,7 @@ public:
       }};
       DEBUG_PRINT("Send to SigFox : ");
       DEBUG_PRINTLN(message.cmd, HEX);
-      return sendSF(reinterpret_cast<const uint8_t*>(&message), 5);
+      return sendSF(reinterpret_cast<const uint8_t*>(&message), 7);
     }
 
     return true;
