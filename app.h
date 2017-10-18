@@ -245,12 +245,14 @@ public:
  */  
   bool setup() {
     Serial.begin(115200);
+#ifdef DEBUG
     while(!Serial) {};
+#endif
   
     if (!initSF()) return false;
     rtc.begin();
   
-#if 0
+#ifndef DEBUG
     const unsigned long epoch = getTimeSF();
     DEBUG_PRINT("Returned Epoch : "); DEBUG_PRINTLN(epoch);
     if (epoch) { 

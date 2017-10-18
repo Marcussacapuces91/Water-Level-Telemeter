@@ -19,7 +19,7 @@
   */  
 class Telemeter {
 private:
-  const byte triggerPin, echoPin;
+  const byte triggerPin, echoPin, enablePin;
 
 public:
 /**
@@ -27,12 +27,17 @@ public:
  * 
  * @param aTrigger Port [out] utilisé pour déclencher une mesure.
  * @param aEcho Port [in] qui donne la signal de la mesure (durée proportionnelle à la distance mesurée).
+ * @param aEnable Port [inv out] Commande l'alimentation du convertisseur 3v -> 5v.
  */
-  Telemeter(const byte aTrigger, const byte aEcho) : 
+  Telemeter(const byte aTrigger, const byte aEcho, const byte aEnable) : 
     triggerPin(aTrigger), 
-    echoPin(aEcho) {
+    echoPin(aEcho),
+    enablePin(aEnable) {
     pinMode(triggerPin, OUTPUT);
+    digitalWrite(triggerPin, LOW);
     pinMode(echoPin, INPUT);  
+    pinMode(enablePin, OUTPUT);  
+    digitalWrite(enablePin, LOW);  // start power converter
   }
 
 /**
@@ -41,11 +46,14 @@ public:
  * @return La distance mesurée en mm ou 0 en cas de mesure erronnée.
  */
   unsigned mesure() const {
-    digitalWrite(triggerPin, HIGH);   // sets the LED on
-    delayMicroseconds(15);            // waits >10 µs
-    digitalWrite(triggerPin, LOW);    // sets the LED off
-    const unsigned long duree = pulseIn(echoPin, HIGH, 60 * 1000); // Count | waits <60ms
-    return 17 * duree / 100;
+    for (byte i = 0; i < 3; ++i) {    // try 3 times
+      digitalWrite(triggerPin, HIGH);
+      delayMicroseconds(15);                // waits >10 µs
+      digitalWrite(triggerPin, LOW); 
+      const unsigned long duree = pulseIn(echoPin, HIGH, 60 * 1000); // Count | waits <60ms
+      if (duree) return 17 * duree / 100;   // return first not null value
+    }
+    return 0;
   }
 };
 

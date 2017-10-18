@@ -15,7 +15,7 @@
  *  soit de variation (dérivée) de ce niveau.
  */
 
-#define DEBUG true
+// #define DEBUG 1
 
 #ifdef DEBUG
 #define DEBUG_PRINT(...)    Serial.print(__VA_ARGS__)
@@ -34,11 +34,12 @@
  * @brief Telemeter hardware constants.
  */
 enum {
-  PIN_TEL_TRIG = 0,
-  PIN_TEL_ECHO = 1
+  PIN_TEL_TRIG = 5,
+  PIN_TEL_ECHO = 4,
+  PIN_TEL_ENABLE = 7
 };
 
-const Telemeter tel(PIN_TEL_TRIG, PIN_TEL_ECHO);
+const Telemeter tel(PIN_TEL_TRIG, PIN_TEL_ECHO, PIN_TEL_ENABLE);
 
 App app(tel);
 
